@@ -36,108 +36,56 @@
 
 ### 2.2 不涉及的模块
 
-{excluded_modules}
+{out_of_scope}
 
 ---
 
-## 三、重构方案
+## 三、非功能目标
 
-### 3.1 方案概述
-
-{solution_overview}
-
-### 3.2 架构变更
-
-**重构前：**
-
-```
-{architecture_before}
-```
-
-**重构后：**
-
-```
-{architecture_after}
-```
-
-### 3.3 详细设计
-
-{detailed_design}
+| 维度 | 目标 | 衡量标准 |
+|------|------|----------|
+| 性能 | {performance} | {performance_metric} |
+| 可维护性 | {maintainability} | {maintainability_metric} |
+| 扩展性 | {extensibility} | {extensibility_metric} |
 
 ---
 
-## 四、实施计划
+## 四、验收标准
 
-### 4.1 实施步骤
+### 4.1 功能验收
 
-| 步骤 | 内容 | 预计工作量 |
-|------|------|------------|
-| {steps} |
+- [ ] 重构后功能与重构前一致
+- [ ] 向后兼容（{compatibility_requirement}）
+- [ ] {other_functional_requirements}
 
-### 4.2 依赖关系
+### 4.2 质量验收
 
-{dependencies}
+- [ ] {quality_criteria_1}
+- [ ] {quality_criteria_2}
 
 ---
 
 ## 五、风险评估
 
-### 5.1 技术风险
-
 | 风险项 | 影响程度 | 发生概率 | 应对措施 |
 |--------|----------|----------|----------|
-| {technical_risks} |
-
-### 5.2 业务风险
-
-| 风险项 | 影响程度 | 发生概率 | 应对措施 |
-|--------|----------|----------|----------|
-| {business_risks} |
+| {risks} |
 
 ---
 
-## 六、兼容性分析
+## 六、约束条件
 
-### 6.1 接口变更
-
-| 接口 | 变更类型 | 兼容性影响 |
-|------|----------|------------|
-| {api_changes} |
-
-### 6.2 数据迁移
-
-{data_migration}
+| 约束类型 | 说明 |
+|----------|------|
+| 技术约束 | {tech_constraints} |
+| 时间约束 | {time_constraints} |
+| 资源约束 | {resource_constraints} |
 
 ---
 
-## 七、测试策略
+## 七、参考资料
 
-### 7.1 测试范围
-
-- [ ] 单元测试
-- [ ] 集成测试
-- [ ] 回归测试
-- [ ] 性能测试
-
-### 7.2 测试用例
-
-{test_cases}
-
----
-
-## 八、验收标准
-
-### 8.1 功能验收
-
-- [ ] 重构后功能与重构前一致
-- [ ] 所有测试用例通过
-- [ ] 无新增 Bug
-
-### 8.2 质量验收
-
-- [ ] 代码复杂度降低（{complexity_before} → {complexity_after}）
-- [ ] 代码覆盖率提升（{coverage_before} → {coverage_after}）
-- [ ] 性能无明显下降
+{references}
 
 ---
 

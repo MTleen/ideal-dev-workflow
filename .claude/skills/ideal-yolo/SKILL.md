@@ -1,203 +1,240 @@
 ---
 name: ideal-yolo
-description: Use when user enables YOLO mode after P2 review approval. Automatically executes P3-P14 phases with AI-powered reviews, circuit breaker, and interrupt recovery.
+description: Use when user enables YOLO mode after P2 review approval. Automatically executes multi-perspective review team with iterative refinement until approved or circuit breaker triggers.
 ---
 
-# ideal-yolo Skill
+> **agents**: Orchestrator skill — 启动 Review Team 执行完整评审流程，由主智能体直接调用。
+>
+> **Team Launch**: 使用 `Agent` 工具（`subagent_type: general-purpose`）一次性启动包含全部角色的 Team，Team 内部完成评审→修改→复查全流程，主会话仅负责启动和接收最终结果。
 
-## 概述
+# ideal-yolo（YOLO 评审模式）
 
-YOLO 模式自动化执行引擎，支持从 P3 到 P14 阶段的全自动执行。
+## 角色定位
 
-## 触发条件
+**评审协调者** — 不是执行者，也不是裁判者。
 
-- **由 ideal-flow-control 调用**：P2 评审通过后，用户选择启用 YOLO 模式
-- **用户手动调用**：`/ideal-yolo` 或说"启用 YOLO 模式"
+职责：
+1. 准备评审上下文（产物路径、评审维度）
+2. 一次性启动 Review Team（包含全部角色）
+3. 等待 Team 返回最终结果
+4. 管理熔断机制（Team 连续 3 轮未通过）
+5. 写入评审日志
 
-## 调用方式
+**不负责**：
+- 实际执行评审（由 Team 内部的评审员执行）
+- 判断是否修改文档（由 Team 内部的 modifier 执行）
+- 决定最终通过（由主智能体决定）
 
-### 由 ideal-flow-control 调用
+---
+
+## Review Team 组成
+
+```
+Review Team（通过 Agent 工具一次性启动）
+
+主持人（Team 内部担任）
+├── 协调评审流程
+├── 收集汇总评审意见
+├── 调度 modifier 修改
+└── 组织复查
+
+评审员 A (architect)：规范合规评审
+评审员 B (dev)：代码质量评审
+评审员 C (qa)：测试完整性评审
+modifier：负责判断是否修改、执行修改、返回修改报告
+```
+
+---
+
+## Team 内部工作流程
+
+Team 启动后，内部按以下流程执行（主会话不介入）：
+
+```
+Round 1 / 最多 3 轮
+
+  Step 1: 并行评审
+    评审员 A → 规范合规评审 → 评审意见
+    评审员 B → 代码质量评审 → 评审意见
+    评审员 C → 测试完整性评审 → 评审意见
+    主持人汇总：全部通过？
+      ├── 是 → 写入日志 → Team 返回"通过"
+      └── 否 → Step 2
+
+  Step 2: modifier 修改
+    modifier 接收全部评审意见
+    modifier 自主决定：哪些要改、哪些不改
+    modifier 执行修改
+    modifier 返回修改报告（含决策理由）
+
+  Step 3: 复查
+    提出意见的评审员 → 验证修改
+    其他评审员 → 跳过
+    主持人汇总复查结果
+      ├── 全部通过 → 写入日志 → Team 返回"通过"
+      └── 仍有意见 → Round++ → 返回 Step 1（最多 3 轮）
+```
+
+---
+
+## 主持人职责（Team 内部角色）
+
+Team 内部由一个成员担任主持人，协调流程：
+
+1. **召集评审**：并行调用评审员 A/B/C
+2. **汇总意见**：收集全部评审意见，判断是否有不通过的
+3. **调度 modifier**：当有评审意见时，调用 modifier 执行修改
+4. **组织复查**：将修改报告反馈给提出意见的评审员
+5. **判断轮次**：连续 3 轮未通过 → Team 返回"熔断"
+
+---
+
+## modifier 职责（Team 内部角色）
+
+modifier 是唯一有权决定"这条评审意见要不要改"的角色：
+
+| 严重程度 | 决策 | 说明 |
+|----------|------|------|
+| P0（致命） | **必须修改** | 不修改则流程无法继续 |
+| P1（重要） | 应修改 | 有充分理由时可保留但需说明 |
+| P2（轻微） | 酌情修改 | 优先处理，不强制 |
+
+modifier 必须返回结构化修改报告，包含：
+- 每条评审意见的决策（修改/跳过）
+- 实际修改内容
+- P0/P1 被跳过的充分理由
+
+---
+
+## 评审意见格式
 
 ```markdown
-当用户在 P2 评审通过后选择"启用 YOLO 模式"时：
+## 评审意见
 
-Skill(
-    skill: "ideal-yolo"
-)
+### 评审员：{角色}
+### 产物：{产物名称}
+
+### 评审结论
+- **通过/不通过**
+
+### 意见列表
+| # | 严重程度 | 位置 | 问题描述 | 建议修改 |
+|---|----------|------|----------|----------|
+| 1 | P0 | xxx | {描述} | {建议} |
+
+### 总结
+{2-3 句话总结评审发现}
 ```
 
-### 用户手动调用
+**严重程度**：P0（致命）→ P1（重要）→ P2（轻微）
 
-```bash
-/ideal-yolo
+---
+
+## 熔断机制
+
+| 熔断条件 | 处理 |
+|----------|------|
+| Team 内部连续 3 轮评审未通过 | Team 返回"熔断"，主会话暂停流程，报告评审意见，等待人工介入 |
+| modifier 跳过 P0/P1 意见未修改 | Team 记录为未解决问题，等待人工介入 |
+
+---
+
+## 评审日志
+
+每次评审生成：`docs/迭代/{需求名称}/yolo-logs/round-{N}.md`
+
+```markdown
+# YOLO 评审日志 — 第 {round} 轮
+
+## 评审信息
+- 评审时间：{ISO 时间戳}
+- 产物：{产物名称}
+
+## 评审员意见汇总
+- 评审员A：通过 / 不通过，{N} 条意见
+- 评审员B：通过 / 不通过，{N} 条意见
+- 评审员C：通过 / 不通过，{N} 条意见
+
+## modifier 修改报告
+{修改报告摘要}
+
+## 复查结果
+{各评审员复查结论}
+
+## 汇总结论
+- 全部通过：是 / 否
+
+## 最终结论
+- 通过 / 熔断（3 轮未通过）
 ```
 
-或说：
-- "启用 YOLO 模式"
-- "开始自动执行"
+---
 
-## 功能
-
-- **自动执行**：P2 评审通过后，自动执行 P3-P14 阶段
-- **自动评审**：AI 自动进行阶段评审并记录结果
-- **熔断机制**：异常检测（连续失败、测试失败、重复错误）自动暂停
-- **中断恢复**：支持断点续传，从中断点继续执行
-- **审计日志**：完整记录执行过程和评审结果
-
-## 使用方式
-
-### 启用 YOLO 模式
-
-在 P2 评审通过后，ideal-flow-control 会询问是否启用 YOLO 模式：
+## 主会话执行流程
 
 ```
-📋 P2 需求评审已通过！
+Step 1: 初始化
+  ├─ 确定当前阶段的产物类型
+  ├─ 确定评审维度
+  ├─ 创建 yolo-logs/ 目录
+  └─ round = 1
 
-是否启用 YOLO 模式自动执行后续阶段？
+Step 2: 启动 Review Team（一次性）
+  └─ Agent(team) → 完整上下文（产物路径、评审维度）
+      Team 内部执行：评审 → 修改 → 复查
+      Team 返回：{通过 / 熔断, 评审日志}
 
-1. 启用 YOLO 模式
-2. 继续传统人工评审流程
+Step 3: 处理 Team 返回结果
+  ├── 通过 → 写入评审日志 → 返回"通过"
+  └── 熔断 → 报告评审意见 → 等待人工介入
 ```
 
-```
-用户选择 "1" → 调用 ideal-yolo skill
-用户选择 "2" → 继续传统人工评审流程
-```
+---
 
-### 执行流程
+## Team 启动 prompt 模板
 
-```mermaid
-flowchart TD
-    A[ideal-yolo 启动] --> B[更新流程状态: yolo_mode.enabled = true]
-    B --> C[读取当前阶段]
-    C --> D{当前阶段 < P14?}
-    D -->|是| E[执行当前阶段 Skill]
-    E --> F[AI 自动评审]
-    F --> G{评审通过?}
-    G -->|是| H[更新阶段状态为 approved]
-    G -->|否| I{熔断检测}
-    I -->|触发熔断| J[暂停执行，通知用户]
-    I -->|未触发| K[记录评审意见，继续]
-    H --> L[记录审计日志]
-    K --> L
-    L --> C
-    D -->|否| M[YOLO 模式完成]
-    M --> N[通知用户进入 P15]
-```
-
-### 命令行工具
-
-```bash
-# 启用 YOLO 模式
-python3 .claude/skills/ideal-yolo/scripts/yolo_control.py --action enable --state-file <path>
-
-# 检查状态
-python3 .claude/skills/ideal-yolo/scripts/yolo_control.py --action status --state-file <path>
-
-# 恢复执行（中断后）
-python3 .claude/skills/ideal-yolo/scripts/yolo_resume.py --action resume --state-file <path>
-```
-
-## 模块结构
+启动 Team 时，通过 Agent 工具传递以下完整上下文：
 
 ```
-.claude/skills/ideal-yolo/
-├── SKILL.md                    # Skill 定义（本文件）
-├── scripts/
-│   ├── yolo_state.py          # M1 状态管理
-│   ├── yolo_logger.py         # M2 审计日志
-│   ├── yolo_control.py        # M3 模式控制
-│   ├── yolo_review.py         # M4 自动评审
-│   ├── yolo_orchestrator.py   # M5 阶段编排
-│   ├── yolo_ralph.py          # M6 Ralph Loop 集成
-│   ├── yolo_circuit.py        # M7 熔断机制
-│   └── yolo_resume.py         # M8 中断恢复
-├── references/
-│   ├── review-standards.md    # 评审标准
-│   └── recovery-protocol.md   # 恢复协议
-└── templates/
-    └── audit-log.md           # 审计日志模板
+你是 Review Team 的主持人。负责协调评审流程直到通过或熔断。
 
-.claude/ralph/
-├── ralph-loop.sh              # 主循环脚本
-├── PROMPT.md                  # 执行提示（动态生成）
-└── hooks/
-    ├── pre-phase.sh           # 前置钩子
-    ├── post-phase.sh          # 后置钩子
-    ├── on-error.sh            # 错误钩子
-    └── on-complete.sh         # 完成钩子
+## 产物信息
+- 产物路径：{产物文件路径}
+- 产物类型：{P1/P3/P5/P7/P9/P11/P14}
+- 评审维度：见下方评审维度映射
+
+## 评审维度
+| 评审员 | 评审范围 |
+|--------|----------|
+| 评审员A (architect) | {规范合规评审范围} |
+| 评审员B (dev) | {代码质量评审范围} |
+| 评审员C (qa) | {测试完整性评审范围} |
+
+## 迭代规则
+- 最多 3 轮迭代
+- 每轮：并行评审 → 汇总 → modifier 修改（如有）→ 复查
+- modifier 决策规则：P0 必须改，P1 应改，P2 酌情
+- 连续 3 轮未通过 → 返回"熔断"
+
+## 输出要求
+每轮结束后写入评审日志到：docs/迭代/{需求名称}/yolo-logs/round-{N}.md
+最终返回：{通过 / 熔断, 评审日志内容摘要}
 ```
 
-## 阶段编排
+---
 
-| 当前阶段 | 执行 Skill | 评审阶段 | 评审方式 |
-|----------|-----------|----------|----------|
-| P3 | ideal-dev-solution | P4 | 自动评审 |
-| P5 | ideal-dev-plan | P6 | 自动评审 |
-| P7 | ideal-test-case | P8 | 自动评审 |
-| P9 | ideal-dev-exec | P10 | 自动评审 |
-| P11 | ideal-test-exec | P12 | 自动评审 |
-| P13 | ideal-wiki | P14 | 自动评审 |
+## 与 flow-control 的接口
 
-## 熔断条件
+| Team 返回值 | 含义 | flow-control 动作 |
+|-------------|------|------------------|
+| `"通过"` | 评审通过 | 更新评审阶段为 approved，推进下一阶段 |
+| `"熔断"` | 3 轮未通过 | 暂停，报告评审意见，等待人工介入 |
 
-| 异常类型 | 阈值 | 处理方式 |
-|----------|------|----------|
-| 评审失败 | 连续 3 次不通过 | 暂停执行，等待用户介入 |
-| 测试失败 | 通过率 < 80% | 暂停执行，等待用户介入 |
-| 重复错误 | 同一错误重复 5 次 | 暂停执行，等待用户介入 |
+---
 
-## 审计日志
+## 质量检查清单
 
-日志存储位置：`docs/迭代/{需求名}/yolo-logs/`
-
-日志内容：
-- 执行时间戳
-- 阶段名称和编号
-- 评审意见（包含通过/不通过判定）
-- 修改建议（如有）
-- 执行结果
-- Token 消耗统计
-
-## 恢复机制
-
-1. 检测到中断后，记录当前状态到流程状态文件
-2. 等待恢复条件满足
-3. 自动重新启动 Ralph Loop，从上次中断点继续执行
-4. 重置熔断计数器
-
-## Ralph Loop 集成
-
-YOLO 模式通过 Ralph Loop 实现持续执行：
-
-```bash
-# Ralph Loop 位置
-.claude/ralph/ralph-loop.sh
-
-# 执行方式
-./.claude/ralph/ralph-loop.sh --state-file docs/迭代/{需求名}/流程状态.md
-```
-
-**Ralph Loop 职责**：
-- 持续调用 Claude Code 直到任务完成
-- 每次调用时传递当前阶段上下文
-- 处理中断和恢复
-
-## 依赖
-
-- Python 3.8+
-- PyYAML
-- pytest（测试）
-
-## 与其他 Skill 的关系
-
-| Skill | 关系 |
-|-------|------|
-| ideal-flow-control | P2 通过后调用 ideal-yolo |
-| ideal-dev-solution | YOLO 模式下自动调用 (P3) |
-| ideal-dev-plan | YOLO 模式下自动调用 (P5) |
-| ideal-test-case | YOLO 模式下自动调用 (P7) |
-| ideal-dev-exec | YOLO 模式下自动调用 (P9) |
-| ideal-test-exec | YOLO 模式下自动调用 (P11) |
-| ideal-wiki | YOLO 模式下自动调用 (P13) |
-| ideal-delivery | YOLO 完成后等待用户确认 (P15) |
+- [ ] Team 已一次性启动，包含全部角色
+- [ ] 评审日志已写入 `yolo-logs/round-{N}.md`
+- [ ] 所有评审意见有对应的修改记录（修改了或跳过了）
+- [ ] 熔断时所有未解决问题已列出

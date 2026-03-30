@@ -6,56 +6,46 @@ agents: [qa, debug]
 
 # ideal-test-exec（P11 测试执行）
 
-## Overview
+## 角色定位
 
-执行测试用例，收集测试结果，生成测试报告。
+Phase Skill — **执行协调者**。
 
-## Agents
+职责：
+1. 加载所需上下文（P7 测试用例 + 项目代码）
+2. 调度子智能体执行测试
+3. 将报告写入文件系统
+4. 返回执行摘要
 
-本 Skill 通过 Task 工具调用以下子代理：
+**不负责**：更新 flow state、验证前置条件，协调评审。
 
-| Agent | 角色 | 用途 |
-|-------|------|------|
-| qa | 测试工程师 | 测试执行、缺陷记录 |
-| debug | 调试工程师 | 缺陷修复、根因分析 |
+---
 
-**调用方式**：通过 Task 工具调用，Hook 自动注入 jsonl 配置的上下文。
+## 输入
 
-```markdown
-Task(
-    subagent_type: "qa",
-    prompt: "执行测试用例，记录结果，发现缺陷",
-    model: "opus"
-)
-```
+| 来源 | 内容 |
+|------|------|
+| P7-测试用例.md | 功能/边界/异常用例 |
+| 项目代码 | 待测试的代码 |
 
-## When to Use
+## 输出
 
-- P10 代码评审已通过
-- 需要执行 P7-测试用例.md 中的用例
-- 需要生成测试报告
+| 文件 | 路径 |
+|------|------|
+| 测试报告 | `docs/迭代/{需求名称}/P11-测试报告.md` |
 
-## Prerequisites
+---
 
-- `docs/迭代/{需求名称}/P7-测试用例.md` 存在
-- `docs/迭代/{需求名称}/流程状态.md` 中 P10 状态为 completed
-- 代码已合并到测试分支
+## 子智能体调度
 
-## Input
+| 调用时机 | 子智能体 | 任务 |
+|----------|----------|------|
+| 测试执行 | `qa` | 按优先级执行用例，记录结果 |
+| 缺陷记录 | `qa` | 分类严重程度，关联相关用例 |
+| 调试修复 | `debug` | 测试失败时的根因分析和修复 |
 
-| 输入 | 路径 | 说明 |
-|------|------|------|
-| 测试用例 | `docs/迭代/{需求名称}/P7-测试用例.md` | 包含功能/边界/异常用例 |
-| 代码 | 项目代码库 | 待测试的代码 |
+---
 
-## Output
-
-| 输出 | 路径 | 说明 |
-|------|------|------|
-| 测试报告 | `docs/迭代/{需求名称}/P11-测试报告.md` | 测试结果和缺陷记录 |
-| 流程状态更新 | `docs/迭代/{需求名称}/流程状态.md` | current_phase 更新为 P11 |
-
-## Test Result Status
+## 测试结果状态
 
 | 状态 | 说明 |
 |------|------|
@@ -64,37 +54,35 @@ Task(
 | SKIP | 跳过测试 |
 | BLOCK | 被阻塞无法执行 |
 
-## Workflow
+## 缺陷严重程度
 
-```dot
-digraph testexec_workflow {
-    rankdir=TB;
+| 级别 | 说明 |
+|------|------|
+| 致命 | 系统崩溃、数据丢失 |
+| 严重 | 核心功能不可用 |
+| 一般 | 功能受限、体验问题 |
+| 轻微 | 界面问题、文字错误 |
 
-    start [label="读取 P7-测试用例.md"];
-    prepare [label="准备测试环境"];
-    loop_start [label="获取下一个用例"];
-    execute [label="执行测试"];
-    record [label="记录结果"];
-    defect [label="发现缺陷?"];
-    log [label="记录缺陷"];
-    more [label="还有用例?"];
-    report [label="生成测试报告"];
-    update [label="更新流程状态"];
-    end [label="完成"];
+---
 
-    start -> prepare -> loop_start;
-    loop_start -> execute -> record;
-    record -> defect;
-    defect -> log [label="是"];
-    defect -> more [label="否"];
-    log -> more;
-    more -> loop_start [label="是"];
-    more -> report [label="否"];
-    report -> update -> end;
-}
+## 执行流程
+
+```
+Step 1: 读取 P7-测试用例.md
+Step 2: 准备测试环境
+Step 3: 按优先级执行用例
+  └─ Task(qa) → 记录执行结果，截图/日志留存
+Step 4: 发现缺陷时
+  └─ Task(debug) → 根因分析，修复后重新验证
+Step 5: 生成测试报告
+Step 6: 更新流程状态
 ```
 
-## Test Report Structure
+详见 `references/test-exec-flow.md`。
+
+---
+
+## 测试报告格式
 
 ```markdown
 # P11-测试报告
@@ -127,122 +115,29 @@ digraph testexec_workflow {
 {结论和建议}
 ```
 
-## Defect Severity
+---
 
-| 级别 | 说明 |
-|------|------|
-| 致命 | 系统崩溃、数据丢失 |
-| 严重 | 核心功能不可用 |
-| 一般 | 功能受限、体验问题 |
-| 轻微 | 界面问题、文字错误 |
-
-## Step-by-Step Process
-
-### Step 1: 读取测试用例
-
-1. 读取 `P7-测试用例.md`
-2. 解析用例列表
-3. 按优先级排序
-
-### Step 2: 准备测试环境
-
-1. 确认代码版本
-2. 准备测试数据
-3. 检查环境配置
-
-### Step 3: 执行测试
-
-**调用 qa 子代理**：
-
-```
-Task(
-    subagent_type: "qa",
-    prompt: "按优先级执行测试用例，记录执行结果，截图留存",
-    model: "opus"
-)
-```
-
-1. 按优先级执行用例
-2. 记录执行结果
-3. 截图/日志留存
-
-### Step 4: 记录缺陷
-
-**调用 qa 子代理**：
-
-```
-Task(
-    subagent_type: "qa",
-    prompt: "记录发现的缺陷，分类严重程度，关联相关用例",
-    model: "opus"
-)
-```
-
-1. 发现缺陷时记录详细信息
-2. 分类缺陷严重程度
-3. 关联相关用例
-
-### Step 5: 失败时的调试流程
-
-**当测试失败时，调用 debug 子代理**：
-
-```
-Task(
-    subagent_type: "debug",
-    prompt: "测试失败，进行根因分析和调试，修复后重新验证",
-    model: "opus"
-)
-```
-
-**调试流程**：
-```
-测试失败
-    │
-    ▼
-暂停测试
-    │
-    ▼
-调用 debug 子代理
-    │
-    ├── Phase 1: 根因调查
-    ├── Phase 2: 模式分析
-    ├── Phase 3: 假设测试
-    └── Phase 4: TDD 修复
-    │
-    ▼
-修复成功？
-    ├── 是 → 重新执行测试
-    └── 否 → 记录缺陷，等待人工介入
-```
-
-### Step 6: 生成报告
-
-1. 统计测试结果
-2. 汇总缺陷信息
-3. 给出测试结论
-
-### Step 7: 更新状态
-
-更新 `流程状态.md`：
-- current_phase: P11
-- status: completed
-
-## Quality Checklist
+## 质量检查清单
 
 - [ ] 所有用例已执行
 - [ ] 结果记录准确
 - [ ] 缺陷已记录
 - [ ] 报告格式规范
 
-## Common Mistakes
+---
 
-| 错误 | 正确做法 |
-|------|----------|
-| 跳过失败用例 | 记录失败原因 |
-| 缺陷描述不清 | 包含复现步骤 |
-| 忽略环境信息 | 记录测试环境 |
+## 返回格式
 
-## References
+```markdown
+## P11 测试执行 — 执行摘要
 
-- `references/templates/test-report-template.md` - 报告模板
-- `scripts/test-runner.sh` - 测试执行脚本
+### 测试统计
+- 总用例数：{N}，通过：{N}，失败：{N}，跳过：{N}
+- 通过率：{X}%
+
+### 缺陷统计
+- 致命：{N}，严重：{N}，一般：{N}，轻微：{N}
+
+### 建议
+{结论和建议}
+```
