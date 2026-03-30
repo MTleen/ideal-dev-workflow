@@ -15,6 +15,10 @@ docs/迭代/{需求名称}/流程状态.md
 requirement_name: {需求名称}
 current_phase: P1-P15
 status: pending|in_progress|completed|blocked|revision
+worktree:
+  branch: feature/<short-name>
+  path: <repo_toplevel>/worktrees/<branch>
+  created_at: {YYYY-MM-DD}
 created_at: {YYYY-MM-DD}
 updated_at: {YYYY-MM-DD}
 ---
@@ -146,10 +150,21 @@ P15 成果提交阶段执行以下步骤：
 | 步骤 | 操作 | 说明 |
 |------|------|------|
 | 1 | 合并代码 | 将开发分支代码合并到主分支 |
-| 2 | 删除 worktree | 清理开发用的 git worktree（如有） |
+| 2 | 删除 worktree | 清理开发用的 git worktree（路径：`/repo_parent/repo_name-worktrees/<branch>`） |
 | 3 | 提交 PR | 创建或更新 Pull Request |
 | 4 | 标记迭代完成 | 将迭代目录名从 `[进行中]` 改为 `[完成]` |
 | 5 | 更新引用 | 更新流程状态文件中的 `stories_dir` 路径 |
+
+### Worktree 路径格式
+
+```
+<repo_toplevel>/worktrees/<branch>
+```
+
+其中：
+- `repo_toplevel` = `git rev-parse --show-toplevel`（仓库根目录）
+- `branch` = 功能分支名（`/` 替换为 `-`，即 `sanitized_branch`）
+- `branch` = 功能分支名（`/` 替换为 `-`）
 
 ### 标记迭代完成规范
 

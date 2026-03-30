@@ -6,18 +6,14 @@ agents: [pm, analyst]
 
 # Ideal Requirement
 
-通过交互式对话引导用户完善需求，生成符合正式学术风格的标准化需求文档。
+通过交互式对话引导用户完善需求，生成符合正式学术风格的标准化需求文档。对于大型需求，自动识别并拆分为多个子迭代项。
 
 ## Agents
-
-本 Skill 通过 Task 工具调用以下子代理：
 
 | Agent | 角色 | 用途 |
 |-------|------|------|
 | pm | 产品经理 | 需求梳理、苏格拉底式对话、文档编写 |
 | analyst | 业务分析师 | 竞品分析、市场调研（可选） |
-
-**调用方式**：通过 Task 工具调用，Hook 自动注入 jsonl 配置的上下文。
 
 ```markdown
 Task(
@@ -29,145 +25,62 @@ Task(
 
 ## Workflow
 
-Requirement Collection Progress:
-- [ ] Step 0: Project Context ⚠️ REQUIRED
-  - [ ] 0.1 Read CLAUDE.md or README.md
-  - [ ] 0.2 Extract key information
-  - [ ] 0.3 Display context summary
-- [ ] Step 0.5: Iteration Type ⚠️ REQUIRED
-  - [ ] 0.5.1 Ask user to select iteration type
-  - [ ] 0.5.2 Determine output directory
-- [ ] Step 1: Type Detection
-- [ ] Step 2: Template Processing
-- [ ] Step 3: Requirement Gathering
-  - [ ] 3.1 Collect core fields
-  - [ ] 3.2 Collect main fields
-  - [ ] 3.3 Collect detail fields
-- [ ] Step 4: Confirmation ⚠️ REQUIRED
-- [ ] Step 5: Generation
-- [ ] Step 6: Completion
-
-```dot
-digraph requirement_workflow {
-    rankdir=LR;
-    node [shape=box];
-    "读取项目背景" [shape=box];
-    "背景存在?" [shape=diamond];
-    "询问项目背景" [shape=box];
-    "迭代类型?" [shape=diamond];
-    "个人迭代目录" [shape=box];
-    "项目迭代目录" [shape=box];
-    "类型识别" [shape=box];
-    "需求收集" [shape=box];
-    "用户说直接生成?" [shape=diamond];
-    "确认摘要" [shape=box];
-    "用户确认?" [shape=diamond];
-    "生成文档" [shape=box];
-    "完成" [shape=doublecircle];
-
-    "读取项目背景" -> "背景存在?";
-    "背景存在?" -> "迭代类型?" [label="是"];
-    "背景存在?" -> "询问项目背景" [label="否"];
-    "询问项目背景" -> "迭代类型?";
-    "迭代类型?" -> "个人迭代目录" [label="个人"];
-    "迭代类型?" -> "项目迭代目录" [label="项目"];
-    "个人迭代目录" -> "类型识别";
-    "项目迭代目录" -> "类型识别";
-    "类型识别" -> "需求收集";
-    "需求收集" -> "用户说直接生成?";
-    "用户说直接生成?" -> "确认摘要" [label="是"];
-    "用户说直接生成?" -> "需求收集" [label="否，继续提问"];
-    "确认摘要" -> "用户确认?";
-    "用户确认?" -> "生成文档" [label="是"];
-    "用户确认?" -> "需求收集" [label="否，修改"];
-    "生成文档" -> "完成";
-}
+```
+进度：
+- [ ] Step 0:   项目背景          ⚠️ REQUIRED
+- [ ] Step 0.5: 迭代类型          ⚠️ REQUIRED
+- [ ] Step 0.6: Worktree 检查      ⚠️ REQUIRED
+- [ ] Step 1:   类型识别
+- [ ] Step 2:   模板处理
+- [ ] Step 3:   需求收集（苏格拉底式对话）
+- [ ] Step 4:   确认摘要           ⚠️ REQUIRED
+- [ ] Step 5:   子迭代拆分判断
+- [ ] Step 6:   生成文档
+- [ ] Step 7:   完成
 ```
 
-## 0. Project Context
+---
 
-**在提问之前，必须先了解项目背景**，使需求收集更加智能化和上下文相关。
+## 0.6 Worktree 检查（必须）
 
-### 0.1 读取顺序
+**整个迭代必须在 Git Worktree 中执行**，P1 开始前就要完成 worktree 创建。
 
-按以下优先级读取项目文件（任一存在即可）：
-
-1. **CLAUDE.md** - Claude Code 项目指令文件（优先）
-2. **README.md** - 项目说明文件
-3. **docs/项目状态.md** - 项目状态看板（如存在）
-
-### 0.2 背景信息提取
-
-从上述文件中提取关键信息：
-
-| 信息类型 | 用途 |
-|----------|------|
-| 项目目标 | 理解需求与项目整体目标的关系 |
-| 系统架构 | 判断需求涉及的技术范围 |
-| 当前阶段 | 了解项目进展，定位需求优先级 |
-| 已有模块 | 避免重复，识别依赖关系 |
-| 技术栈 | 确保需求符合技术约束 |
-| 团队规模 | 调整问题深度和复杂度 |
-
-### 0.3 背景应用
-
-在开始需求收集时，简要说明已了解的项目背景：
+### 检查流程
 
 ```
-📚 项目背景已加载：
-- 项目：{项目名称}
-- 目标：{项目目标概述}
-- 当前阶段：{当前阶段}
-- 相关模块：{涉及的模块}
+1. 检查当前是否在 worktree 中
+   pwd | grep worktrees  # 或 git worktree list
 
-基于以上背景，开始收集需求...
+2. 如不在 worktree 中：
+   ├─ 读取 project-config.md 获取分支命名规范
+   ├─ 生成分支名：feature/{short-name}
+   ├─ 使用 git worktree add 创建 worktree
+   └─ ★ 创建完成后立即切换到新 worktree 目录
 ```
 
-### 0.4 无项目背景时的处理
+### 自动切换（关键）
 
-若项目根目录不存在上述文件：
-1. 直接进入类型识别阶段
-2. 在第一个问题中询问："请简要描述项目背景"
+**创建 worktree 后必须立即切换**，否则后续所有操作都在原分支执行：
 
-## 0.5 Iteration Type
-
-**在开始需求收集之前，必须确定迭代类型**。
-
-### 0.5.1 迭代类型选项
-
-使用 AskUserQuestion 询问用户：
-
-| 类型 | 说明 | 目录位置 |
-|------|------|----------|
-| **个人迭代** | 个人开发工作、学习项目、临时调试 | `docs/迭代/` |
-| **项目迭代** | 团队协作、正式需求、需要共享进度 | `docs/项目迭代/` |
-
-**询问话术**：
 ```
-这是个人迭代还是项目迭代？
-- 个人迭代：个人开发工作，不需要团队共享进度
-- 项目迭代：团队协作项目，需要共享进度和文档
+创建 worktree 成功后，立即执行：
+  cd /path/to/repo/worktrees/feature-{short-name}
+
+验证切换成功：
+  pwd  # 确认路径包含 worktrees
+  git branch --show-current  # 确认是 feature/xxx 分支
 ```
 
-### 0.5.2 目录位置确定
+### 分支命名
 
-根据用户选择确定输出目录：
+| 类型 | 格式 | 示例 |
+|------|------|------|
+| 功能分支 | `feature/<short-name>` | `feature/mat5-multi-layer-memory` |
+| 修复分支 | `fix/<short-name>` | `fix/chat-api-timeout` |
 
-| 迭代类型 | 输出目录 | Git 跟踪 |
-|----------|----------|----------|
-| 个人迭代 | `docs/迭代/{YYYY-MM-DD}-[进行中]-{需求名称}/` | 否（.gitignore） |
-| 项目迭代 | `docs/项目迭代/{YYYY-MM-DD}-[进行中]-{需求名称}/` | 否（.gitignore，通过 Obsidian 共享） |
+> **short-name 规则**：需求 ID（如 MAT-5）+ 简短描述，不超过 50 字符
 
-**⚠️ 重要**：两种迭代目录都不被 Git 跟踪，通过 Obsidian 等工具实现多人协作共享。
-
-### 0.5.3 Red Flags - STOP
-
-You are ABOUT TO violate this rule if:
-- About to create iteration directory without asking iteration type
-- Thinking "it's always personal iteration"
-- User mentions "团队" or "协作" but you didn't ask about iteration type
-
-**If ANY red flag applies: Stop. Ask iteration type first.**
+---
 
 ## The Iron Law
 
@@ -175,317 +88,226 @@ You are ABOUT TO violate this rule if:
 NO REQUIREMENT QUESTIONS WITHOUT READING PROJECT CONTEXT FIRST
 ```
 
-**No exceptions:**
-- Don't rely on conversation memory
-- Don't assume project context from previous mentions
-- Don't skip even for "simple" requirements
-- Don't guess - read files first
+**必须先读取 CLAUDE.md 或 README.md**，了解项目背景后再提问。
 
-### 0.5 Red Flags - STOP
+---
 
-You are ABOUT TO violate this rule if:
-- About to ask the first question without reading CLAUDE.md or README.md
-- Don't know the project name, goal, or current phase
-- User says "in this project..." but you have no project context loaded
-- Thinking "I'll gather requirements and infer context later"
-- Feeling "this is simple enough to skip the setup"
-- **ANY indication you're starting questions without project context**
+## 核心原则：需求文档聚焦"做什么"，不包含"怎么做"
 
-**If ANY red flag applies: Stop. Read project files first.**
+**需求文档只回答：**
+- 背景：现状是什么？为什么需要改变？
+- 目标：重构后要达到什么效果？
+- 范围：涉及哪些模块？不涉及哪些？
+- 验收标准：怎么算完成？
 
-## 1. Type Detection
+**需求文档不包含（属于技术方案阶段）：**
+- 技术选型、架构设计
+- 实施步骤、依赖关系
+- 接口变更、数据迁移
+- 测试策略、详细设计
+- 代码实现细节
 
-启动时确定需求类型：
+---
 
-**若用户已指定类型**：直接使用指定模板。
+## 0. 项目背景（必须）
 
-**若未指定**：通过简短对话识别：
-- "这是新功能开发、Bug修复、还是重构优化？"
-- 或根据用户描述的关键词自动判断
+读取优先级：CLAUDE.md → README.md → docs/项目状态.md
+
+提取：项目目标、系统架构、当前阶段、已有模块、技术栈、团队规模。
+
+如果无项目文件，在第一个问题中询问"请简要描述项目背景"。
+
+---
+
+## 0.5 迭代类型（必须）
+
+**询问**：这是个人迭代还是项目迭代？
+
+| 类型 | 说明 | 目录位置 |
+|------|------|----------|
+| 个人迭代 | 个人开发，不需要团队共享进度 | `docs/迭代/` |
+| 项目迭代 | 团队协作，需要共享进度和文档 | `docs/项目迭代/` |
+
+两种迭代目录都不被 Git 跟踪。
+
+---
+
+## 1. 类型识别
+
+用户已指定类型 → 直接使用；未指定 → 通过对话识别：
 
 | 类型 | 触发关键词 | 模板 |
 |------|-----------|------|
-| 软件功能 | 新功能、新增、开发、实现 | `software-feature.md` |
-| Bug修复 | Bug、缺陷、错误、修复、问题 | `bug-fix.md` |
-| 重构优化 | 重构、优化、改进、调整 | `refactoring.md` |
+| 软件功能 | 新功能、开发、实现 | `software-feature.md` |
+| Bug修复 | Bug、缺陷、错误、修复 | `bug-fix.md` |
+| 重构优化 | 重构、优化、改进 | `refactoring.md` |
 
-确认类型后，加载对应的模板文件。
+---
 
-## 2. Template Processing
+## 2. 模板处理
 
-### 2.1 Auto-Extract Placeholders
+1. 读取 `references/templates/{type}.md`
+2. 扫描所有 `{placeholder}` 占位符
+3. 按优先级排序提问（核心 → 主体 → 细节）
 
-1. 读取 `references/templates/{type}.md` 模板文件
-2. 扫描所有 `{placeholder}` 格式的占位符
-3. 按"核心→细节"智能排序提问：
-   - **第一优先级**：title、problem_statement、bug_title、goal、goals（核心）
-   - **第二优先级**：features、user_roles、acceptance、preconditions、复现步骤（主体）
-   - **第三优先级**：constraints、risks、references、performance（细节）
-
-### 2.2 Required vs Optional Fields
-
-**必填字段**（收集时强制确认）：
+**必填字段**：
 
 | 模板 | 必填字段 |
 |------|----------|
 | software-feature | title, problem_statement, goal, features, acceptance_functional |
 | bug-fix | title, bug_title, preconditions, step_1, expected_behavior, actual_behavior |
-| refactoring | title, current_state, problems, goals, solution_overview |
+| refactoring | title, current_state, problems, goals, acceptance_functional |
 
-**可选字段**：其他占位符，用户可跳过
+---
 
-## 3. Requirement Gathering (Socratic Dialogue)
+## 3. 需求收集（苏格拉底式对话）
 
-**调用 pm 子代理执行需求收集**：
+调用 pm 子代理执行。
 
-```
-Task(
-    subagent_type: "pm",
-    prompt: "执行苏格拉底式需求收集，逐项填充模板占位符",
-    model: "opus"
-)
-```
-
-### 3.0 User Commands (Anytime)
-
-用户可在对话过程中随时使用以下命令：
+### 用户命令（随时可用）
 
 | 命令 | 作用 |
 |------|------|
-| **跳过** | 跳过当前问题（可选字段） |
-| **直接生成** | 跳过剩余问题，进入确认阶段 |
+| **跳过** | 跳过当前可选问题 |
+| **直接生成** | 跳过剩余问题，进入确认 |
 | **回到 XX** | 修改之前某个字段的回答 |
 | **取消** | 结束流程（可选保存草稿） |
 
-### 3.1 Question Strategy
+### 提问策略
 
-以产品经理的视角，采用苏格拉底式提问策略：
+- 一次只问一个问题
+- 提供 2-4 个选项辅助
+- 追问细节
+- 记录答案
+- 聚焦用户价值（每个功能都要回答"为谁解决什么问题"）
 
-1. **一次只问一个问题** - 不堆砌多个问题
-2. **提供选项辅助** - 复杂问题给出 2-4 个选项
-3. **追问细节** - 根据回答深入挖掘
-4. **记录答案** - 实时记录用户回答
-5. **聚焦用户价值** - 每个功能都要回答"为谁解决什么问题"
+---
 
-### 3.2 Progress Indicator
+## 4. 确认摘要
 
-每完成一个主要章节，告知用户进度：
+展示：类型、标题、背景摘要、核心功能、验收标准
 
-```
-📋 需求收集进度：
-✅ 需求背景
-🔄 功能需求（进行中）
-⏳ 非功能需求
-⏳ 验收标准
-```
+用户响应：
+- "是"/"确认" → 进入拆分判断
+- "修改 XX" → 返回收集阶段
+- "继续" → 补充更多信息
 
-### 3.3 Optional: Competitor Analysis
+---
 
-**调用 analyst 子代理执行竞品分析**：
+## 5. 子迭代拆分判断
 
-```
-Task(
-    subagent_type: "analyst",
-    prompt: "执行竞品分析，对比功能差异，提出差异化建议",
-    model: "opus"
-)
-```
+**建议拆分**（满足任一）：
+- 涉及多个独立模块
+- 工作量超过 2 人日
+- 子任务之间有明确依赖关系
+- 涉及多个技术栈层次
 
-如果用户需要竞品分析，执行以下步骤：
-1. 识别主要竞品
-2. 对比功能差异
-3. 分析优劣势
-4. 提出差异化建议
+**不建议拆分**：单个组件（< 0.5 人日）、Bug 修复、简单样式调整
 
-## 4. Error Handling
+---
 
-### 4.1 Directory Conflict
+## 6. 生成文档
 
-**检查:** 若 `docs/迭代/{需求名称}/` 已存在，使用 AskUserQuestion 提供选项：
-- **覆盖**: 备份旧文件后重新生成
-- **修改**: 读取现有文档，基于当前内容进行修改
-- **新名称**: 提供新的需求名称
+### 目录命名
 
-**执行:** 根据用户选择执行相应操作。
-
-### 4.2 User Cancellation
-
-**触发:** 用户说"取消"或"不需要了"
-
-**流程:**
-1. 询问："是否保存已收集的信息为草稿？"
-2. 选择"是": 保存到 `docs/迭代/.drafts/{timestamp}.md`
-3. 选择"否": 直接结束，不生成任何文件
-
-### 4.3 Missing Required Fields
-
-**处理:**
-1. 提示："该字段为必填项，建议提供基本信息"
-2. 用户坚持跳过: 用 `[待补充]` 占位，继续生成
-
-## 5. Confirmation
-
-**时机:** 收集完成后
-
-**内容:** 展示摘要（类型、标题、背景摘要、核心功能、验收标准）
-
-**用户响应:**
-- **"是"/"确认"** → 进入生成阶段
-- **"修改 XX"** → 返回收集阶段修改指定字段
-- **"继续"** → 补充更多信息
-
-## 6. Generation
-
-**调用 pm 子代理生成文档**：
+#### 父迭代（单一需求）
 
 ```
-Task(
-    subagent_type: "pm",
-    prompt: "根据收集的信息生成正式学术风格的需求文档",
-    model: "opus"
-)
+docs/迭代/YYYY-MM-DD-[状态]-{需求名称}/
+├── P1-需求文档.md
+└── 流程状态.md
 ```
 
-根据收集的信息，生成符合正式学术风格的需求文档：
-1. 应用需求文档结构
-2. 确保验收标准清晰、可测试
-3. 使用正式学术风格（见 `references/writing-style.md`）
+#### 拆分需求（父迭代 + 子迭代）
 
-### 6.1 Determine Requirement Name
+> **重要**：每个子迭代都是完整的 CCWorkflow 迭代（独立执行 P1-P15），因此命名规范与父迭代完全一致。
 
-与用户确认需求名称，建议基于 title 自动生成目录名。
+```
+docs/迭代/YYYY-MM-DD-[状态]-{父需求名称}/
+├── P1-需求文档.md              # 父迭代总览文档
+├── 流程状态.md                 # 父迭代流程状态
+├── YYYY-MM-DD-[状态]-子迭代A-{子迭代名称}/
+│   ├── P1-需求文档.md
+│   └── 流程状态.md
+├── YYYY-MM-DD-[状态]-子迭代B-{子迭代名称}/
+│   ├── P1-需求文档.md
+│   └── 流程状态.md
+└── YYYY-MM-DD-[状态]-子迭代C-{子迭代名称}/
+    ├── P1-需求文档.md
+    └── 流程状态.md
+```
 
-**命名规范**：
-- 目录格式：`{YYYY-MM-DD}-{状态}-{需求名称}/`
-- 日期为需求提出日期
-- 状态标识：`[进行中]` 或 `[已完成]`
-- 需求名称使用简短英文或中文，不含特殊字符
+**命名规则**：
+- 父迭代：`YYYY-MM-DD-[状态]-{需求名称}`
+- 子迭代：`YYYY-MM-DD-[状态]-子迭代{A|B|C|...}-{简短名称}`
+- 状态：`[待启动]` / `[进行中]` / `[已完成]` / `[已交付]`
+- 每个子迭代独立执行完整 15 阶段流程（P1-P15）
+- 子迭代文件夹内**不需要**包含父迭代的 `流程状态.md`
 
-**示例**：
-- 进行中：`2026-02-22-[进行中]-用户登录优化/`
-- 已完成：`2026-02-22-[完成]-用户登录优化/`
-
-**状态更新规则**：
-- 创建需求时：文件夹名称包含 `[进行中]`
-- P15 阶段完成后：重命名文件夹，将 `[进行中]` 改为 `[完成]`
-
-### 6.2 Determine Output Directory
-
-根据 Step 0.5 确定的迭代类型，选择输出目录：
-
-| 迭代类型 | 输出目录 | 说明 |
-|----------|----------|------|
-| 个人迭代 | `docs/迭代/` | 个人需求，不通过 Git 共享 |
-| 项目迭代 | `docs/项目迭代/` | 团队协作需求，通过 Obsidian 共享 |
-
-### 6.3 Create Files
-
-**输出路径**：`{输出目录}/{YYYY-MM-DD}-[进行中]-{需求名称}/`
+### 输出文件
 
 | 文件 | 说明 |
 |------|------|
-| `P1-需求文档.md` | 需求文档本体（填充模板 + 学术风格） |
-| `流程状态.md` | 流程控制文件（current_phase: P1, status: in_progress） |
+| `P1-需求文档.md` | 填充模板 + 学术风格 |
+| `流程状态.md` | current_phase: P1, status: in_progress, worktree 字段 |
 
-### 6.3 Generation Process
+**流程状态.md 必须包含 worktree 信息**：
+
+```yaml
+---
+requirement_name: {需求名称}
+current_phase: P1
+status: in_progress
+yolo_mode: false
+worktree:
+  branch: feature/{short-name}
+  path: {repoRoot}/worktrees/feature-{short-name}
+  created_at: {YYYY-MM-DD}
+created_at: {创建时间}
+updated_at: {更新时间}
+---
+```
+
+### 生成流程
 
 1. 读取 `references/templates/{type}.md`
 2. 填充占位符，计算风险等级
 3. 应用正式学术风格（见 `references/writing-style.md`）
 4. 写入文件
 
-### 6.4 Worktree 创建（可选）
+---
 
-如果用户需要开始开发，可以调用 using-git-worktrees skill：
+## 7. 完成
 
-```
-Skill(
-    skill: "using-git-worktrees",
-    args: "{需求名称}"
-)
-```
+输出文件位置和下一步提示（进入 P2 需求评审）。
 
-## 7. Completion
+---
 
-生成后输出文件位置和下一步提示（进入 P2 需求评审）。
+## 示例
 
-## 8. Examples
+详见 `references/examples.md`。
 
-### Example 1: Problem Statement
+---
 
-<Good>
-**问题陈述:**
-"当前用户登录模块存在以下问题：
-1. 登录响应时间过长，平均耗时 3.5 秒，超出系统设计目标（1 秒）
-2. 高并发场景下错误率上升至 5%，主要表现为连接超时
-3. 用户反馈统计显示，登录相关问题占总投诉量的 23%"
+## 错误处理
 
-**特点:** 具体数据、明确对比、量化影响
-```
+| 场景 | 处理 |
+|------|------|
+| 目录已存在 | 覆盖 / 修改 / 新名称 |
+| 用户取消 | 保存草稿或直接结束 |
+| 必填字段缺失 | 提示后用 `[待补充]` 占位 |
 
-<Bad>
-**问题陈述:**
-"现在用户登录很慢，经常报错，用户体验不好，需要优化一下。"
-
-**问题:** 缺乏数据、主观评价、无量化指标
-```
-
-### Example 2: Features Description
-
-<Good>
-| 功能编号 | 功能名称 | 功能描述 | 优先级 |
-|----------|----------|----------|--------|
-| F001 | 用户登录 | 支持邮箱/手机号登录，包含验证码验证 | P0 |
-| F002 | 密码找回 | 通过邮箱找回密码，发送重置链接 | P1 |
-| F003 | 第三方登录 | 支持微信、GitHub OAuth 登录 | P2 |
-
-**特点:** 结构化、可追踪、优先级明确
-```
-
-<Bad>
-**功能清单:**
-- 登录功能
-- 找回密码
-- 第三方登录
-- 还有其他一些功能...
-
-**问题:** 无编号、无优先级、无描述
-```
-
-### Example 3: Acceptance Criteria
-
-<Good>
-**功能验收:**
-- [ ] 用户可使用邮箱和手机号登录
-- [ ] 验证码 60 秒内发送成功
-- [ ] 登录响应时间 < 1 秒（P95）
-- [ ] 并发 100 用户时错误率 < 0.1%
-
-**特点:** 可测试、可量化、覆盖边界
-```
-
-<Bad>
-**验收标准:**
-- 功能正常
-- 性能良好
-- 无 Bug
-
-**问题:** 无法验证、无具体指标
-```
+---
 
 ## Script Directory
 
-**Agent Execution Instructions:**
-1. Determine this SKILL.md file's directory path as `SKILL_DIR`
-2. Script path = `${SKILL_DIR}/scripts/<script-name>.py`
+| Script | 用途 |
+|--------|------|
+| `scripts/validate-requirements.py` | 验证需求文档完整性 |
+| `scripts/calculate-risk.py` | 计算风险等级 |
+| `scripts/generate-flow-status.py` | 生成流程状态文件 |
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `validate-requirements.py` | 验证需求文档完整性 | `python scripts/validate-requirements.py <file.md>` |
-| `calculate-risk.py` | 计算风险等级 | `python scripts/calculate-risk.py <file.md>` |
-| `generate-flow-status.py` | 生成流程状态文件 | `python scripts/generate-flow-status.py <output_dir> <requirement_name> <created_date> [phase]` |
-
-**Scripts location:** `scripts/` directory within this skill
+---
 
 ## References
 
@@ -495,3 +317,4 @@ Skill(
 | `references/templates/bug-fix.md` | Bug 修复需求模板 |
 | `references/templates/refactoring.md` | 重构优化需求模板 |
 | `references/writing-style.md` | 正式学术风格指南 |
+| `references/examples.md` | 示例 |
