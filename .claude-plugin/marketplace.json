@@ -1,0 +1,19 @@
+{
+  "name": "ideal-dev-workflow",
+  "owner": {
+    "name": "MTleen"
+  },
+  "metadata": {
+    "description": "15 阶段开发流程工作流 Marketplace — 需求→方案→计划→编码→测试→评审→交付",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "ideal-dev-workflow",
+      "source": "./plugins/ideal-dev-workflow",
+      "description": "15 阶段开发流程工作流：需求→方案→计划→编码→测试→评审→交付",
+      "category": "development",
+      "keywords": ["workflow", "development", "requirement", "testing", "review"]
+    }
+  ]
+}
