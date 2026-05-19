@@ -1,262 +1,108 @@
-# Claude Code 中心化团队工作流设计方案
+# ideal-dev-workflow
 
-## 一、项目背景
+**15 阶段开发流程工作流 Marketplace** — 从需求到交付的完整开发链路
 
-以 Claude Code 为中心重构团队工作流，实现从产品设计、前端设计到开发、测试、上线的全流程自动化。核心目标是让团队成员只需：**提需求、做评审、反馈意见**，其他工作由 Claude Code 自动完成。
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/MTleen/ideal-dev-workflow)
+[![Skills](https://img.shields.io/badge/skills-14-green?style=flat-square)](./plugins/ideal-dev-workflow/skills)
+[![Version](https://img.shields.io/badge/version-1.1.0-orange?style=flat-square)](./plugins/ideal-dev-workflow/.claude-plugin/plugin.json)
 
 ---
 
-## 二、核心架构
+## 概览
 
-### 2.1 统一存储结构
+ideal-dev-workflow 是一个 Claude Code Plugin Marketplace，提供 15 阶段严格有序的开发流程流水线，覆盖从需求编写到成果提交的完整链路。
 
-采用 **Git 仓库 + Obsidian vault 统一存储** 方案，`docs/` 目录即为 Obsidian vault，文档与代码在同一仓库中版本同步。
+包含 **1 个插件**、**14 个 Skill**。
+
+## 快速开始
+
+### 1. 添加 Marketplace
+
+```bash
+claude plugin marketplace add https://github.com/MTleen/ideal-dev-workflow
+```
+
+### 2. 安装插件
+
+```bash
+claude plugin install ideal-dev-workflow@ideal-dev-workflow
+```
+
+### 3. 调用 Skill
+
+安装后 Skill 自动加载，通过斜杠命令调用：
 
 ```
-{项目名称}/                       # Git 仓库根目录
-│
-├── .claude/                       # Claude Code 相关
-│   ├── skills/                    # 定制化 skills（项目级）
-│   │   ├── ideal-requirement/     # 需求编写（通用）
-│   │   ├── ideal-dev-solution/    # 技术方案（开发领域）
-│   │   ├── ideal-dev-plan/        # 计划生成（开发领域）
-│   │   ├── ideal-test-case/       # 测试用例（测试领域）
-│   │   ├── ideal-dev-review/      # 代码审查（开发领域）
-│   │   ├── ideal-wiki/            # 维基生成（通用）
-│   │   └── ...
-│   └── plans/                     # 编码计划（临时文件）
-│
-├── src/                           # 源代码
-│   └── orchestrator/              # 流程编排器
-│
-├── tests/                         # 测试代码
-│
-├── templates/                     # 所有模板
-│   └── docs/                      # 文档模板
-│       ├── 需求文档.md
-│       ├── 技术方案.md
-│       ├── 编码计划.md
-│       ├── 测试用例.md
-│       └── 测试报告.md
-│
-├── docs/                          # Obsidian vault（文档中心）
-│   ├── .obsidian/                 # Obsidian 配置
-│   ├── .automation/               # 自动化配置
-│   │   └── config.yaml
-│   │
-│   ├── 项目状态.md                 # 项目状态看板
-│   ├── 产品愿景.md
-│   ├── 产品路线图.md
-│   │
-│   ├── 迭代/                      # 按需求命名
-│   │   └── {需求名称}/
-│   │       ├── P1-需求文档.md
-│   │       ├── P3-技术方案.md
-│   │       ├── P5-编码计划.md
-│   │       ├── P7-测试用例.md
-│   │       ├── P11-测试报告.md
-│   │       ├── 流程状态.md         # 状态控制文件
-│   │       └── stories/           # 故事文件（P5 生成）
-│   │           ├── index.md       # 故事索引
-│   │           └── 0XX-*.md       # 原子化故事
-│   │
-│   └── Wiki/                      # 维基文档
-│       ├── 用户文档/
-│       ├── 开发文档/
-│       └── 接口文档/
-│
+/ideal-dev-workflow:ideal-init              # 项目初始化
+/ideal-dev-workflow:ideal-requirement       # P1 需求编写
+/ideal-dev-workflow:ideal-dev-solution      # P3 技术方案
+/ideal-dev-workflow:ideal-dev-plan          # P5 编码计划
+/ideal-dev-workflow:ideal-test-case         # P7 测试用例
+/ideal-dev-workflow:ideal-dev-exec          # P9 开发执行
+/ideal-dev-workflow:ideal-code-review       # P10 代码评审
+/ideal-dev-workflow:ideal-test-exec         # P11 测试执行
+/ideal-dev-workflow:ideal-wiki              # P13 维基更新
+/ideal-dev-workflow:ideal-delivery          # P15 成果提交
+/ideal-dev-workflow:ideal-flow-control      # 阶段流转控制
+/ideal-dev-workflow:ideal-yolo              # YOLO 自动模式
+/ideal-dev-workflow:ideal-debugging         # 系统调试
+/ideal-dev-workflow:ideal-deep-research     # 深度调研
+```
+
+## 阶段流程
+
+```
+P1 需求编写 → P2 需求评审 → P3 技术方案 → P4 方案评审
+→ P5 编码计划 → P6 计划评审 → P7 测试用例 → P8 用例评审
+→ P9 开发执行 → P10 代码评审 → P11 测试执行 → P12 测试评审
+→ P13 维基更新 → P14 维基评审 → P15 成果提交
+```
+
+偶数阶段（P2/P4/P6/P8/P10/P12/P14）为人工评审关卡。
+
+## 插件清单
+
+| 插件 | 版本 | 说明 | Skills |
+|------|------|------|--------|
+| [ideal-dev-workflow](./plugins/ideal-dev-workflow) | 1.1.0 | 15 阶段开发流程工作流 | 14 |
+
+## Skill 列表
+
+| Skill | 阶段 | 说明 |
+|-------|------|------|
+| ideal-init | — | 项目初始化与配置生成 |
+| ideal-requirement | P1 | 需求文档编写（功能/Bug/重构） |
+| ideal-dev-solution | P3 | 技术方案生成 |
+| ideal-dev-plan | P5 | 编码计划与原子任务拆分 |
+| ideal-test-case | P7 | 测试用例生成 |
+| ideal-dev-exec | P9 | TDD 开发执行 |
+| ideal-code-review | P10 | 两阶段代码评审（规格+质量） |
+| ideal-test-exec | P11 | 测试执行与报告 |
+| ideal-wiki | P13 | 维基文档生成 |
+| ideal-delivery | P15 | 成果提交与交付 |
+| ideal-flow-control | — | 阶段流转状态管理 |
+| ideal-yolo | — | YOLO 自动模式（多视角评审） |
+| ideal-debugging | — | 系统调试与根因分析 |
+| ideal-deep-research | — | 企业级深度调研 |
+
+## 目录结构
+
+```
+ideal-dev-workflow/
+├── .claude-plugin/
+│   └── marketplace.json          # Marketplace 索引
+├── plugins/
+│   └── ideal-dev-workflow/       # 插件主体
+│       ├── .claude-plugin/
+│       │   └── plugin.json
+│       ├── skills/               # 14 个 Skill
+│       ├── package.json
+│       └── CHANGELOG.md
+├── package.json
 ├── .gitignore
-├── .gitlab-ci.yml
-└── README.md                      # 仓库说明
+└── README.md
 ```
 
-### 2.2 职责划分
+## License
 
-| 维度 | docs/ (Obsidian vault) | src/ + 根目录 |
-|------|------------------------|---------------|
-| **定位** | 文档中心、流程控制、决策记录 | 代码执行层 |
-| **人类交互** | 产品/设计/管理者（Obsidian 界面） | 开发者评审代码 |
-| **Claude 交互** | 读写文档、生成方案 | 读写代码、执行计划 |
-| **版本控制** | Git（通过 Obsidian Git 插件） | Git |
-
-### 2.3 Obsidian Git 插件配置
-
-团队使用 Obsidian Git 插件实现文档的自动同步：
-- 自动备份间隔：每 5 分钟
-- 自动拉取间隔：每 5 分钟
-- 冲突处理：先 pull 再 push
-
----
-
-## 三、阶段流程定义（P1-P15）
-
-### 3.1 阶段总览
-
-```mermaid
-flowchart LR
-    %% 主流程
-    P1((P1<br/>需求编写)):::claude --> P2((P2<br/>需求评审)):::human
-    P2 --> P3((P3<br/>技术方案)):::claude
-    P3 --> P4((P4<br/>方案评审)):::human
-    P4 --> P5((P5<br/>计划生成)):::claude
-    P5 --> P6((P6<br/>计划评审)):::human
-
-    P6 --> P7((P7<br/>测试用例)):::claude
-    P7 --> P8((P8<br/>用例评审)):::human
-    P8 --> P9((P9<br/>开发执行)):::claude
-    P9 --> P10((P10<br/>代码评审)):::human
-    P10 --> P11((P11<br/>测试执行)):::claude
-    P11 --> P12((P12<br/>测试评审)):::human
-
-    P12 --> P13((P13<br/>维基更新)):::claude
-    P13 --> P14((P14<br/>维基评审)):::human
-    P14 --> P15((P15<br/>成果提交)):::claude
-
-    %% 样式定义
-    classDef human fill:#fff2cc,stroke:#d6b656,stroke-width:2px,color:#000
-    classDef claude fill:#d5e8d4,stroke:#82b366,stroke-width:2px,color:#000
-    classDef auto fill:#dae8fc,stroke:#6c8ebf,stroke-width:2px,color:#000
-
-    %% 图例
-    subgraph legend[图例]
-        L1((人工)):::human
-        L2((Claude)):::claude
-        L3((自动)):::auto
-    end
-```
-
-### 3.2 阶段详情
-
-| 阶段  | 名称   | 执行者    | 输入                | 输出             | 审核人       |
-| --- | ---- | ------ | ----------------- | -------------- | --------- |
-| P1  | 需求编写 | 产品/设计  | 需求想法              | 需求文档.md + 原型代码 | -         |
-| P2  | 需求评审 | 人工     | 需求文档.md           | 评审意见/通过        | 产品+技术负责人  |
-| P3  | 技术方案 | Claude | 需求文档.md           | 技术方案.md        | -         |
-| P4  | 方案评审 | 人工     | 技术方案.md           | 评审意见/通过        | 技术负责人+架构师 |
-| P5  | 计划生成 | Claude | 技术方案.md           | 编码计划.md（原子任务）  | -         |
-| P6  | 计划评审 | 人工     | 编码计划.md           | 评审意见/通过        | 开发负责人     |
-| P7  | 测试用例 | Claude | 需求文档.md + 编码计划.md | 测试用例.md        | -         |
-| P8  | 用例评审 | 人工     | 测试用例.md           | 评审意见/通过        | 测试负责人     |
-| P9  | 开发执行 | Claude | 编码计划.md           | 代码 + MR        | -         |
-| P10 | 代码评审 | 人工     | MR                | Approve/修改意见   | 开发团队      |
-| P11 | 测试执行 | Claude | 测试用例.md           | 测试报告.md        | -         |
-| P12 | 测试评审 | 人工     | 测试报告.md           | 通过/修复          | 测试负责人     |
-| P13 | 维基更新 | Claude | 代码 + 需求文档.md      | 维基文档           | -         |
-| P14 | 维基评审 | 人工     | 维基文档              | 发布许可           | 产品+技术     |
-| P15 | 成果提交 | Claude | 全部通过              | 合并代码、删除 worktree、提交 PR | - |
-
-> 注：上线部署由 CI/CD 自动化完成，P15 成果提交后自动触发 CI/CD 流水线。
-
----
-
-## 四、触发机制
-
-### 4.1 自动触发
-- 文件变化监听（fswatch/chokidar）
-- 流程状态.md 中的状态字段变更
-- GitLab Webhook（MR 状态变化）
-
-### 4.2 手动触发
-- 修改 流程状态.md 中的审核状态字段
-- 命令行：`automation trigger --project 项目名 --phase P7`
-- Obsidian 内按钮（Templater 插件）
-
-### 4.3 状态控制示例
-
-```markdown
-# 流程状态.md
----
-current_phase: P6
-plan_review: pending    # 改为 approved 触发 P7
----
-```
-
----
-
-## 五、通知服务
-
-- **邮件**：关键节点通知
-- **即时通讯**：钉钉/企业微信机器人
-- **Obsidian 内**：README.md 状态看板自动更新
-
----
-
-## 六、维基管理
-
-### 6.1 文档分类
-
-| 类型 | 内容 | 生成时机 |
-|------|------|----------|
-| 用户文档 | 使用指南、常见问题、更新日志 | 上线后 P15 |
-| 开发文档 | 架构说明、部署文档 | 方案确认后 + 上线后 |
-| 接口文档 | REST/GraphQL 文档 | 代码合并后自动提取 |
-
-### 6.2 发布方式
-- GitLab Wiki（自动同步）
-- 静态站点（VitePress/Docusaurus，可选）
-
----
-
-## 七、技术组件
-
-### 7.1 流程调度器
-- 文件监听器（watcher）
-- 状态机（state machine）
-- 任务队列（task queue）
-- 通知服务（notify）
-
-### 7.2 执行器
-- Claude Code 命令行调用
-- GitLab 接口集成
-- 持续集成流水线触发
-
----
-
-## 八、后续实施任务
-
-| 优先级 | 任务 | 说明 |
-|--------|------|------|
-| 高 | 定义需求文档模板和编写指南 | 产品文档规范 |
-| 高 | 定义技术方案模板 | 基于 Superpowers |
-| 高 | 定义编码计划模板 | 参考 Superpowers writing-plans |
-| 高 | 实现文件监听器 | chokidar/fswatch |
-| 高 | 实现状态机 | 阶段流转控制 |
-| 高 | GitLab 接口集成 | Issue/MR 管理 |
-| 中 | 定义测试用例模板 | 测试规范 |
-| 中 | 实现通知服务 | 邮件 + 即时通讯 |
-| 中 | 定义产品级文档模板 | 愿景/路线图 |
-| 低 | 维基静态站点构建 | VitePress 集成 |
-
----
-
-## 九、关键决策记录
-
-1. **存储架构**：Git 仓库与 Obsidian vault 统一存储，`docs/` 目录即为 vault
-2. **文档格式**：全量 Markdown
-3. **Claude 调用方式**：Claude Code 命令行
-4. **人工干预**：关键决策点 + 每阶段审核
-5. **Bug 管理**：直接在 GitLab Issue，不存 Obsidian
-6. **需求与 Issue**：一对一对应
-7. **编码计划位置**：仓库根目录 `.claude/plans/`，临时文件
-8. **Skills 位置**：`.claude/skills/`，Claude Code 标准位置
-9. **Skills 命名规范**：`ideal-{领域?}-{功能}`，如 `ideal-brainstorm`、`ideal-dev-plan`
-10. **模板位置**：`templates/docs/`，按类型统一管理
-11. **迭代命名**：按需求名称命名，如 `迭代/用户登录/`
-
----
-
-## 十、验证方式
-
-1. 选择一个简单功能（如用户登录）
-2. 按照流程从 P1 到 P15 走一遍
-3. 验证各阶段文档生成质量
-4. 验证触发机制是否正常
-5. 验证通知是否到位
-
----
-
-## 参考资源
-
-- [Superpowers GitHub](https://github.com/obra/Superpowers)
-- [Superpowers writing-plans skill](https://github.com/obra/Superpowers/blob/master/skills/writing-plans/SKILL.md)
-- [Jesse Vincent's Blog - How I'm using coding agents](https://blog.fsck.com/2025/10/09/superpowers/)
+MIT
